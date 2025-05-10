@@ -1,0 +1,79 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>💼 THR Wallet Viewer</title>
+  <style>
+    body {
+      background-color: #000;
+      color: #0f0;
+      font-family: monospace;
+      padding: 20px;
+    }
+    input {
+      width: 60%;
+      background: #111;
+      color: #0f0;
+      border: 1px solid #0f0;
+      padding: 10px;
+      margin: 10px 0;
+    }
+    button {
+      padding: 10px;
+      background: #0f0;
+      color: #000;
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .tx {
+      margin-top: 20px;
+      border-top: 1px dashed #0f0;
+      padding-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<div style="background:#000;padding:10px;border-bottom:1px solid #0f0;text-align:center;">
+  <a href="/" style="color:#0f0;margin:10px;">🏠 Home</a>
+  <a href="/pledge" style="color:#0f0;margin:10px;">🔥 Pledge</a>
+  <a href="/viewer" style="color:#0f0;margin:10px;">📦 Viewer</a>
+  <a href="/send" style="color:#0f0;margin:10px;">💸 Send</a>
+  <a href="/wallet" style="color:#0f0;margin:10px;">👛 Wallet</a>
+  <a href="/docs" style="color:#0f0;margin:10px;">📚 Docs</a>
+</div>
+
+
+<h1>💼 THR Wallet Viewer</h1>
+<p>Enter a THR address to view its balance and transaction history:</p>
+
+<input type="text" id="thrAddress" placeholder="e.g. THR..." />
+<button onclick="loadWallet()">🔍 View Wallet</button>
+
+<h2>Balance: <span id="balance">0</span> THR</h2>
+<div id="txHistory"></div>
+
+<script>
+async function loadWallet() {
+  const addr = document.getElementById("thrAddress").value.trim();
+  if (!addr) return alert("Enter a THR address.");
+  const res = await fetch("/wallet/" + addr);
+  const data = await res.json();
+  document.getElementById("balance").textContent = data.balance.toFixed(4);
+
+  const txs = data.transactions;
+  let html = "";
+  txs.forEach(tx => {
+    html += `<div class='tx'>
+      From: ${tx.from}<br>
+      To: ${tx.to}<br>
+      Amount: ${tx.amount} THR<br>
+      Time: ${tx.timestamp}<br>
+    </div>`;
+  });
+  document.getElementById("txHistory").innerHTML = html || "No transactions found.";
+}
+</script>
+</body>
+</html>
