@@ -60,18 +60,15 @@ async function loadWallet() {
   if (!addr) return alert("Enter a THR address.");
   const res = await fetch("/wallet/" + addr);
   const data = await res.json();
-  document.getElementById("balance").textContent = data.balance.toFixed(4);
+document.getElementById("walletForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const addr = document.getElementById("thr_address").value.trim();
+  const res = await fetch(`/wallet_data/${addr}`);
+  const json = await res.json();
+  document.getElementById("balance").textContent = json.balance + " THR";
+  // Εμφάνισε και τα transactions από json.transactions…
+});
 
-  const txs = data.transactions;
-  let html = "";
-  txs.forEach(tx => {
-    html += `<div class='tx'>
-      From: ${tx.from}<br>
-      To: ${tx.to}<br>
-      Amount: ${tx.amount} THR<br>
-      Time: ${tx.timestamp}<br>
-    </div>`;
-  });
   document.getElementById("txHistory").innerHTML = html || "No transactions found.";
 }
 </script>
