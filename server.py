@@ -243,6 +243,10 @@ def wallet_data(thr_address):
     chain  = load_json(CHAIN_FILE, [])
     balance = ledger.get(thr_address, 0.0)
 
+@app.route("/wallet/<thr_address>", methods=["GET"])
+def wallet_redirect(thr_address):
+    return redirect(url_for('wallet_data', thr_address=thr_address))
+
     history = [
         tx for tx in chain
         if isinstance(tx, dict) and (
