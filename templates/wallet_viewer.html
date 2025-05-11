@@ -1,7 +1,7 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>💼 THR Wallet Viewer</title>
   <style>
     body {
@@ -10,20 +10,20 @@
       font-family: monospace;
       padding: 20px;
     }
-    input {
-      width: 60%;
+    nav a {
+      color: #0f0;
+      margin-right: 1em;
+      text-decoration: none;
+    }
+    input, button {
       background: #111;
       color: #0f0;
       border: 1px solid #0f0;
-      padding: 10px;
+      padding: 8px;
       margin: 10px 0;
+      font-family: monospace;
     }
     button {
-      padding: 10px;
-      background: #0f0;
-      color: #000;
-      border: none;
-      font-weight: bold;
       cursor: pointer;
     }
     .tx {
@@ -35,42 +35,66 @@
 </head>
 <body>
 
-<div style="background:#000;padding:10px;border-bottom:1px solid #0f0;text-align:center;">
-  <a href="/" style="color:#0f0;margin:10px;">🏠 Home</a>
-  <a href="/pledge" style="color:#0f0;margin:10px;">🔥 Pledge</a>
-  <a href="/viewer" style="color:#0f0;margin:10px;">📦 Viewer</a>
-  <a href="/send" style="color:#0f0;margin:10px;">💸 Send</a>
-  <a href="/wallet" style="color:#0f0;margin:10px;">👛 Wallet</a>
-  <a href="/docs" style="color:#0f0;margin:10px;">📚 Docs</a>
-</div>
+  <nav>
+    <a href="/">🏠 Home</a>
+    <a href="/pledge">🔥 Pledge</a>
+    <a href="/viewer">📦 Viewer</a>
+    <a href="/send">💸 Send</a>
+    <a href="/wallet">👛 Wallet</a>
+    <a href="/docs">📚 Docs</a>
+  </nav>
 
+  <h1>💼 THR Wallet Viewer</h1>
+  <p>Enter a THR address to view its balance and transaction history:</p>
 
-<h1>💼 THR Wallet Viewer</h1>
-<p>Enter a THR address to view its balance and transaction history:</p>
+  <div>
+    <input type="text" id="thrAddress" placeholder="e.g. THR..." size="40" />
+    <button onclick="loadWallet()">🔍 View Wallet</button>
+  </div>
 
-<input type="text" id="thrAddress" placeholder="e.g. THR..." />
-<button onclick="loadWallet()">🔍 View Wallet</button>
+  <h2>Balance: <span id="balance">0</span> THR</h2>
+  <div id="txHistory">No transactions yet.</div>
 
-<h2>Balance: <span id="balance">0</span> THR</h2>
-<div id="txHistory"></div>
+  <script>
+    async function loadWallet() {
+      const addr = document.getElementById("thrAddress").value.trim();
+      if (!addr) {
+        alert("Please enter a THR address.");
+        return;
+      }
 
-<script>
-async function loadWallet() {
-  const addr = document.getElementById("thrAddress").value.trim();
-  if (!addr) return alert("Enter a THR address.");
-  const res = await fetch("/wallet/" + addr);
-  const data = await res.json();
-document.getElementById("walletForm").addEventListener("submit", async e => {
-  e.preventDefault();
-  const addr = document.getElementById("thr_address").value.trim();
-  const res = await fetch(`/wallet_data/${addr}`);
-  const json = await res.json();
-  document.getElementById("balance").textContent = json.balance + " THR";
-  // Εμφάνισε και τα transactions από json.transactions…
-});
+      try {
+        const res = await fetch(`/wallet_data/${addr}`);
+        if (!res.ok) throw new Error("Server returned " + res.status);
+        const json = await res.json();
 
-  document.getElementById("txHistory").innerHTML = html || "No transactions found.";
-}
-</script>
+        // Ενημέρωση balance
+        document.getElementById("balance").textContent = json.balance;
+
+        // Εμφάνιση history
+        const histDiv = document.getElementById("txHistory");
+        if (json.transactions.length === 0) {
+          histDiv.textContent = "No transactions found.";
+        } else {
+          let html = "";
+          json.transactions.forEach(tx => {
+            html += `
+              <div class="tx">
+                <strong>${tx.timestamp}</strong><br>
+                ${tx.from ? `From: ${tx.from}<br>` : ""}
+                ${tx.to   ? `To: ${tx.to}<br>`     : ""}
+                Amount: ${tx.amount ?? tx.reward ?? 0} ${tx.amount ? "" : "THR"}<br>
+                ${tx.fee ? `Fee: ${tx.fee}` : ""}
+              </div>`;
+          });
+          histDiv.innerHTML = html;
+        }
+
+      } catch (e) {
+        alert("Error loading wallet: " + e.message);
+      }
+    }
+  </script>
+
 </body>
 </html>
