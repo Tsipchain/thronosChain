@@ -288,6 +288,33 @@ def send_token():
     }
     chain.append(tx)
     save_json(CHAIN_FILE,chain)
+    from flask import redirect, url_for, send_from_directory
+
+# ——————————————————————————————————————————————————————
+# Serve τα PDF που παράγονται (τα έβαλες στο static/contracts)
+@app.route("/contracts/<path:filename>")
+def serve_contract(filename):
+    return send_from_directory(os.path.join(app.root_path, "static", "contracts"), filename)
+
+# ——————————————————————————————————————————————————————
+# Endpoint που επιστρέφει JSON balance + history
+@app.route("/wallet_data/<thr_addr>", methods=["GET"])
+def wallet_data(thr_addr):
+    ledger = load_json(LEDGER_FILE, {})
+    chain  = load_json(CHAIN_FILE, [])
+    balance = round(ledger.get(thr_addr, 0.0), 6)
+    history = [
+        tx for tx in chain
+        if tx.get("from") == thr_addr or tx.get("to") == thr_addr
+    ]
+    return jsonify(balance=balance, transactions=history), 200
+
+# ——————————————————————————————————————————————————————
+# Redirect από το /wallet/XXX στο /wallet_data/XXX
+@app.route("/wallet/<thr_addr>", methods=["GET"])
+def wallet_redirect(thr_addr):
+    return redirect(url_for("wallet_data", thr_addr=thr_addr))
+
 
     return jsonify(status="OK", tx=tx),200
 
