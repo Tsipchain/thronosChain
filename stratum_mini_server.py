@@ -17,7 +17,7 @@ def handle_client(conn, addr):
             break
     conn.close()
 
-def start_stratum_server(host='0.0.0.0', port=3333):
+def start_stratum_server(host='0.0.0.0', port=433):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind((host, port))
     server.listen(5)
