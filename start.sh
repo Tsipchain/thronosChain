@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-echo "=== Starting Stratum server on TCP port 433 ==="
+echo "=== Starting Stratum server on TCP port 3333 ==="
 python stratum_mini_server.py &          # τρέχει Stratum background
 STRATUM_PID=$!
 
