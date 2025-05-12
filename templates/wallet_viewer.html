@@ -5,7 +5,7 @@
   <title>💼 THR Wallet Viewer</title>
   <style>
     body {
-      background-color: #000;
+      background: #000;
       color: #0f0;
       font-family: monospace;
       padding: 20px;
@@ -21,11 +21,8 @@
       border: 1px solid #0f0;
       padding: 8px;
       margin: 10px 0;
-      font-family: monospace;
     }
-    button {
-      cursor: pointer;
-    }
+    button { cursor: pointer; }
     .tx {
       margin-top: 20px;
       border-top: 1px dashed #0f0;
@@ -62,34 +59,28 @@
         alert("Please enter a THR address.");
         return;
       }
-
       try {
         const res = await fetch(`/wallet_data/${addr}`);
         if (!res.ok) throw new Error("Server returned " + res.status);
-        const json = await res.json();
-
-        // Ενημέρωση balance
-        document.getElementById("balance").textContent = json.balance;
-
-        // Εμφάνιση history
-        const histDiv = document.getElementById("txHistory");
-        if (json.transactions.length === 0) {
-          histDiv.textContent = "No transactions found.";
+        const data = await res.json();
+        document.getElementById("balance").textContent = data.balance + " THR";
+        const div = document.getElementById("txHistory");
+        if (!data.transactions.length) {
+          div.textContent = "No transactions found.";
         } else {
           let html = "";
-          json.transactions.forEach(tx => {
+          data.transactions.forEach(tx => {
             html += `
-              <div class="tx">
-                <strong>${tx.timestamp}</strong><br>
-                ${tx.from ? `From: ${tx.from}<br>` : ""}
-                ${tx.to   ? `To: ${tx.to}<br>`     : ""}
-                Amount: ${tx.amount ?? tx.reward ?? 0} ${tx.amount ? "" : "THR"}<br>
-                ${tx.fee ? `Fee: ${tx.fee}` : ""}
-              </div>`;
+            <div class="tx">
+              <strong>${tx.timestamp}</strong><br>
+              ${tx.from ? `From: ${tx.from}<br>` : ""}
+              ${tx.to   ? `To: ${tx.to}<br>`     : ""}
+              Amount: ${tx.amount ?? tx.reward ?? 0} ${tx.amount ? "" : "THR"}<br>
+              ${tx.fee ? `Fee: ${tx.fee}` : ""}
+            </div>`;
           });
-          histDiv.innerHTML = html;
+          div.innerHTML = html;
         }
-
       } catch (e) {
         alert("Error loading wallet: " + e.message);
       }
