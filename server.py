@@ -2,13 +2,12 @@ import os
 import json
 import time
 import hashlib
-from flask import Flask, request, jsonify, render_template, send_from_directory
-from phantom_gateway_mainnet import get_btc_txns  # Your BTC API
-
-# Για τη δημιουργία PDF contracts
+from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, url_for
+from phantom_gateway_mainnet import get_btc_txns
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
+
 
 app = Flask(__name__)
 
@@ -243,17 +242,7 @@ def wallet_data(thr_address):
     chain  = load_json(CHAIN_FILE, [])
     balance = ledger.get(thr_address, 0.0)
 
-@app.route("/wallet/<thr_address>", methods=["GET"])
-def wallet_redirect(thr_address):
-    return redirect(url_for('wallet_data', thr_address=thr_address))
 
-    history = [
-        tx for tx in chain
-        if isinstance(tx, dict) and (
-           tx.get("from")==thr_address or tx.get("to")==thr_address
-        )
-    ]
-    return jsonify(balance=round(balance,6), transactions=history), 200
 
 @app.route("/send_token", methods=["POST"])
 def send_token():
