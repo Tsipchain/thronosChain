@@ -52,7 +52,7 @@ def create_pdf_contract(btc_addr, pledge_text, thr_addr, filename):
     c.drawString(1*inch, h-1.5*inch, f"BTC Address: {btc_addr}")
     c.drawString(1*inch, h-1.8*inch, "Pledge Text:")
 
-    # Wrapped pledge text
+    # Wrapped text
     text_obj = c.beginText(1*inch, h-2.1*inch)
     text_obj.setFont("Helvetica", 12)
     line = ""
@@ -66,20 +66,37 @@ def create_pdf_contract(btc_addr, pledge_text, thr_addr, filename):
         text_obj.textLine(line)
     c.drawText(text_obj)
 
-    # THR address footer
+    # THR footer
     footer_y = h - 2.1*inch - (len(pledge_text)//80 + 1)*15 - 10
     c.drawString(1*inch, footer_y, f"Generated THR Address: {thr_addr}")
 
     c.save()
     return pdf_path
 
-# ─── TEMPLATE ROUTES ──────────────────────────────
-@app.route("/")              def home():    return render_template("index.html")
-@app.route("/docs")          def docs():    return render_template("tokenomics.html")
-@app.route("/pledge")        def pledge():  return render_template("pledge_form.html")
-@app.route("/send")          def send_thr():return render_template("send_thr_form.html")
-@app.route("/viewer")        def viewer():  return render_template("thronos_block_viewer.html")
-@app.route("/wallet")        def wallet():  return render_template("wallet_viewer.html")
+# ─── ROUTES ───────────────────────────────────────
+@app.route("/")
+def home():
+    return render_template("index.html")
+
+@app.route("/docs")
+def docs():
+    return render_template("tokenomics.html")
+
+@app.route("/pledge")
+def pledge_form():
+    return render_template("pledge_form.html")
+
+@app.route("/send")
+def send_thr_form():
+    return render_template("send_thr_form.html")
+
+@app.route("/viewer")
+def block_viewer():
+    return render_template("thronos_block_viewer.html")
+
+@app.route("/wallet")
+def wallet_viewer():
+    return render_template("wallet_viewer.html")
 
 # ─── PLEDGE SUBMIT ────────────────────────────────
 @app.route("/pledge_submit", methods=["POST"])
@@ -100,7 +117,6 @@ def pledge_submit():
             pdf_filename=f"pledge_{existing['thr_address']}.pdf"
         ), 200
 
-    # Check payment on BTC network
     txns = get_btc_txns(btc_address, BTC_RECEIVER)
     paid = any(
         tx.get("to") == BTC_RECEIVER and float(tx.get("amount_btc", 0)) >= 0.00001
@@ -109,7 +125,6 @@ def pledge_submit():
     if not paid:
         return jsonify(status="pending", message="Waiting for BTC payment"), 200
 
-    # Create new pledge
     thr_addr = f"THR{int(time.time() * 1000)}"
     phash    = hashlib.sha256((btc_address + pledge_text).encode()).hexdigest()
 
@@ -137,7 +152,7 @@ def pledge_submit():
 def serve_contract(filename):
     return send_from_directory(CONTRACTS_DIR, filename)
 
-# ─── CHAIN & BLOCK SUBMISSION ────────────────────
+# ─── CHAIN & BLOCK ───────────────────────────────
 @app.route("/chain", methods=["GET"])
 def get_chain():
     return jsonify(load_json(CHAIN_FILE, [])), 200
