@@ -2,11 +2,11 @@
 set -e
 
 echo "=== Starting Stratum server on TCP port 3333 ==="
-python stratum_mini_server.py &          # τρέχει Stratum background
+python stratum_mini_server.py &    # make sure this listens on port 3333
 STRATUM_PID=$!
 
 echo "=== Starting Flask app on HTTP port 8000 ==="
-python server.py                         # τρέχει Flask
+python server.py                   # reads $PORT or defaults to 8000
 
 echo "=== Stopping Stratum server (PID $STRATUM_PID) ==="
-kill $STRATUM_PID                        # καθαρίζει στο τέλος
+kill $STRATUM_PID
