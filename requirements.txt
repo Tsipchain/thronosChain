@@ -7,3 +7,4 @@ pillow
 qrcode
 numpy
 matplotlib
+APScheduler
