@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 import json
 import time
@@ -14,8 +13,6 @@ from phantom_gateway_mainnet import get_btc_txns
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
-
-# Background scheduler
 from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
@@ -58,7 +55,7 @@ def create_pdf_contract(btc_addr, pledge_text, thr_addr, filename):
     c.drawString(1*inch, h - 1.5*inch, f"BTC Address: {btc_addr}")
     c.drawString(1*inch, h - 1.8*inch, "Pledge Text:")
 
-    # Pledge body (line wrapping)
+    # Pledge body
     text = c.beginText(1*inch, h - 2.1*inch)
     text.setFont("Helvetica", 12)
     line = ""
@@ -169,11 +166,11 @@ def submit_block():
     data["pool_fee"]        = fee
     data["reward_to_miner"] = round(r - fee, 6)
 
-    # 1) προσθήκη στο blockchain
+    # προσθήκη στο blockchain
     chain.append(data)
     save_json(CHAIN_FILE, chain)
 
-    # 2) ενημέρωση ledger
+    # ενημέρωση ledger
     ledger = load_json(LEDGER_FILE, {})
     miner = data["thr_address"]
     ledger[miner] = round(ledger.get(miner,0.0) + data["reward_to_miner"], 6)
@@ -188,7 +185,7 @@ def wallet_data(thr_addr):
     bal     = round(ledger.get(thr_addr, 0.0), 6)
     history = [
         tx for tx in chain
-        if isinstance(tx,dict) and (tx.get("from")==thr_addr or tx.get("to")==thr_addr)
+        if isinstance(tx, dict) and (tx.get("from") == thr_addr or tx.get("to") == thr_addr)
     ]
     return jsonify(balance=bal, transactions=history), 200
 
@@ -211,7 +208,7 @@ def send_token():
     ledger = load_json(LEDGER_FILE,{})
     fee    = 0.0015
     total  = round(amt+fee,6)
-    if ledger.get(frm,0.0)<total:
+    if ledger.get(frm,0.0) < total:
         return jsonify(error="Insufficient balance"),403
 
     ledger[frm] = round(ledger.get(frm,0.0)-total,6)
@@ -222,16 +219,16 @@ def send_token():
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
         "from": frm, "to": to_, "amount": amt, "fee": fee
     }
-    chain = load_json(CHAIN_FILE,[])
+    chain = load_json(CHAIN_FILE, [])
     chain.append(tx)
     save_json(CHAIN_FILE, chain)
     return jsonify(status="OK", tx=tx), 200
 
-# ─── BACKGROUND JOB: mint first blocks ─────────────
+# ─── BACKGROUND MINING FOR FIRST BLOCKS ─────────────
 def mint_first_blocks():
     pledges = load_json(PLEDGE_CHAIN, [])
     chain   = load_json(CHAIN_FILE, [])
-    seen    = {b.get("thr_address") for b in chain if isinstance(b,dict) and b.get("thr_address")}
+    seen    = {b.get("thr_address") for b in chain if isinstance(b, dict) and b.get("thr_address")}
     height  = len(chain)
 
     for p in pledges:
@@ -243,21 +240,17 @@ def mint_first_blocks():
         fee = 0.005
         to_miner = round(r - fee, 6)
         block = {
-          "thr_address":     thr,
-          "timestamp":       time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
-          "block_hash":      f"THR-{height}",
-          "reward":          r,
-          "pool_fee":        fee,
-          "reward_to_miner": to_miner
+            "thr_address":     thr,
+            "timestamp":       time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+            "block_hash":      f"THR-{height}",
+            "reward":          r,
+            "pool_fee":        fee,
+            "reward_to_miner": to_miner
         }
 
         try:
-            # εσωτερικό POST στο ίδιο app
-            resp = requests.post(
-              f"http://localhost:{os.getenv('PORT',8000)}/submit_block",
-              json=block, timeout=5
-            )
-            resp.raise_for_status()
+            requests.post(f"http://localhost:{os.getenv('PORT',8000)}/submit_block",
+                          json=block, timeout=5).raise_for_status()
             chain = load_json(CHAIN_FILE, [])
             height = len(chain)
             seen.add(thr)
@@ -265,7 +258,7 @@ def mint_first_blocks():
         except Exception as e:
             print(f"❌ Failed mining for {thr}:", e)
 
-# ξεκινάει ο scheduler μόλις φορτώσει η εφαρμογή
+# εκκίνηση scheduler
 scheduler = BackgroundScheduler(daemon=True)
 scheduler.add_job(mint_first_blocks, 'interval', minutes=1)
 scheduler.start()
