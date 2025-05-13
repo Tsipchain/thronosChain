@@ -144,7 +144,7 @@ def pledge_submit():
         pdf_filename=pdf_name
     ), 200
 
-@app.route("/contracts/<path:filename>")
+@app.route("static/contracts/<path:filename>")
 def serve_contract(filename):
     return send_from_directory(CONTRACTS_DIR, filename)
 
