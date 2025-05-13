@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 import json
 import time
@@ -57,7 +58,7 @@ def create_pdf_contract(btc_addr, pledge_text, thr_addr, filename):
     c.drawString(1*inch, h - 1.5*inch, f"BTC Address: {btc_addr}")
     c.drawString(1*inch, h - 1.8*inch, "Pledge Text:")
 
-    # Pledge body
+    # Pledge body (line wrapping)
     text = c.beginText(1*inch, h - 2.1*inch)
     text.setFont("Helvetica", 12)
     line = ""
@@ -168,11 +169,11 @@ def submit_block():
     data["pool_fee"]        = fee
     data["reward_to_miner"] = round(r - fee, 6)
 
-    # 1) blockchain
+    # 1) προσθήκη στο blockchain
     chain.append(data)
     save_json(CHAIN_FILE, chain)
 
-    # 2) ledger
+    # 2) ενημέρωση ledger
     ledger = load_json(LEDGER_FILE, {})
     miner = data["thr_address"]
     ledger[miner] = round(ledger.get(miner,0.0) + data["reward_to_miner"], 6)
@@ -185,7 +186,10 @@ def wallet_data(thr_addr):
     ledger  = load_json(LEDGER_FILE, {})
     chain   = load_json(CHAIN_FILE, [])
     bal     = round(ledger.get(thr_addr, 0.0), 6)
-    history = [tx for tx in chain if isinstance(tx,dict) and (tx.get("from")==thr_addr or tx.get("to")==thr_addr)]
+    history = [
+        tx for tx in chain
+        if isinstance(tx,dict) and (tx.get("from")==thr_addr or tx.get("to")==thr_addr)
+    ]
     return jsonify(balance=bal, transactions=history), 200
 
 @app.route("/wallet/<thr_addr>", methods=["GET"])
@@ -202,7 +206,7 @@ def send_token():
     except:
         return jsonify(error="Invalid amount"), 400
     if not frm or not to_ or amt<=0:
-        return jsonify(error="Invalid input"),400
+        return jsonify(error="Invalid input"),403
 
     ledger = load_json(LEDGER_FILE,{})
     fee    = 0.0015
@@ -223,7 +227,7 @@ def send_token():
     save_json(CHAIN_FILE, chain)
     return jsonify(status="OK", tx=tx), 200
 
-# ─── BACKGROUND MINER ─────────────────────────────
+# ─── BACKGROUND JOB: mint first blocks ─────────────
 def mint_first_blocks():
     pledges = load_json(PLEDGE_CHAIN, [])
     chain   = load_json(CHAIN_FILE, [])
@@ -248,6 +252,7 @@ def mint_first_blocks():
         }
 
         try:
+            # εσωτερικό POST στο ίδιο app
             resp = requests.post(
               f"http://localhost:{os.getenv('PORT',8000)}/submit_block",
               json=block, timeout=5
@@ -260,7 +265,7 @@ def mint_first_blocks():
         except Exception as e:
             print(f"❌ Failed mining for {thr}:", e)
 
-# εκκίνηση scheduler
+# ξεκινάει ο scheduler μόλις φορτώσει η εφαρμογή
 scheduler = BackgroundScheduler(daemon=True)
 scheduler.add_job(mint_first_blocks, 'interval', minutes=1)
 scheduler.start()
