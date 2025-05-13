@@ -1,9 +1,15 @@
-
 import requests
 import time
 import logging
 
-def get_btc_txns(btc_address: str, btc_receiver: str = None, skip_verification: bool = False) -> list[dict]:
+# σταθερά
+BASE_URL      = "https://blockstream.info/api"
+MIN_AMOUNT    = 0.00001  # ελάχιστη πληρωμή
+
+def get_btc_txns(btc_address: str,
+                 btc_receiver: str = None,
+                 skip_verification: bool = False
+                 ) -> list[dict]:
     """
     Επιστρέφει λίστα transaction dicts με τουλάχιστον:
       - 'to' (str): διεύθυνση παραλήπτη
@@ -11,39 +17,69 @@ def get_btc_txns(btc_address: str, btc_receiver: str = None, skip_verification: 
       - 'txid' (str): το transaction ID
       - 'timestamp' (int): χρονοσφραγίδα της συναλλαγής
     
-    Χρησιμοποιεί το Blockstream API για να λάβει τις συναλλαγές.
-    Παράμετρος skip_verification: Αν είναι True, δεν γίνεται έλεγχος και επιστρέφει απευθείας τα στοιχεία
-    για διευθύνσεις που υπάρχουν ήδη στο block.
+    Αν skip_verification=True, παρακάμπτει το API και επιστρέφει ένα dummy
+    payment για διευθύνσεις που ήδη υπάρχουν στο block.
     """
-    # Αν είναι διεύθυνση που υπάρχει ήδη στο block και ζητείται παράκαμψη ελέγχου
     if skip_verification:
-        # Επιστροφή στοιχείων χωρίς έλεγχο για διευθύνσεις που είναι ήδη στο block
         return [{
             'to': btc_receiver or 'VERIFIED_ADDRESS',
-            'amount_btc': 0.00001,  # Ελάχιστο ποσό για επαλήθευση
+            'amount_btc': MIN_AMOUNT,
             'txid': f'verified_{btc_address}_{int(time.time())}',
             'timestamp': int(time.time())
         }]
-        
+    
+    # configure logger
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("phantom_gateway")
+
     try:
-        # Configure logging for debugging
-        logging.basicConfig(level=logging.INFO)
-        logger = logging.getLogger("phantom_gateway")
-        
-        # Use Blockstream API to get transaction history
-        logger.info(f"Fetching transactions for address: {btc_address}")
-        resp = requests.get(
-            f"https://blockstream.info/api/address/{btc_address}/txs",
-            timeout=10  # Add timeout to prevent hanging requests
-        )
-        resp.raise_for_status()
-        raw_txs = resp.json()
-        logger.info(f"Found {len(raw_txs)} transactions")
-        
-        # Process transactions and outputs
+        # 1) φέρνουμε confirmed + mempool
+        logger.info(f"Fetching confirmed txs for {btc_address}")
+        chain = requests.get(f"{BASE_URL}/address/{btc_address}/txs/chain", timeout=10)
+        chain.raise_for_status()
+        logger.info(f"Fetching mempool txs for {btc_address}")
+        memp  = requests.get(f"{BASE_URL}/address/{btc_address}/txs/mempool", timeout=10)
+        memp.raise_for_status()
+
+        raw_txs = chain.json() + memp.json()
+        logger.info(f"Total txs fetched: {len(raw_txs)}")
+
         txs = []
         for tx in raw_txs:
-            txid = tx.get("txid")
+            txid       = tx.get("txid")
+            tx_time    = tx.get("status", {}).get("block_time", int(time.time()))
+
+            # φορτώνουμε λεπτομέρειες για να κοιτάξουμε outputs
+            try:
+                detail = requests.get(f"{BASE_URL}/tx/{txid}", timeout=10)
+                detail.raise_for_status()
+                info   = detail.json()
+
+                for vout in info.get("vout", []):
+                    addr     = vout.get("scriptpubkey_address")
+                    sats     = vout.get("value", 0)
+                    amount   = sats / 1e8
+
+                    # αν ψάχνουμε συγκεκριμένο receiver ή δε θέλουμε φιλτράρισμα
+                    if (btc_receiver is None or addr == btc_receiver) and amount >= MIN_AMOUNT:
+                        txs.append({
+                            "txid":        txid,
+                            "to":          addr,
+                            "from":        btc_address,
+                            "amount_btc":  amount,
+                            "timestamp":   tx_time
+                        })
+                        logger.info(f"→ relevant: {txid} → {amount} BTC to {addr}")
+            except Exception as e:
+                logger.error(f"Error fetching details for {txid}: {e}")
+                continue
+
+        return txs
+
+    except Exception as e:
+        logger.error(f"Error in get_btc_txns: {e}")
+        return []
+
             tx_timestamp = tx.get("status", {}).get("block_time", int(time.time()))
             
             # Get detailed transaction info to check outputs properly
