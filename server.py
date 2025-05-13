@@ -119,7 +119,7 @@ def pledge_submit():
         ), 200
 
     txns = get_btc_txns(btc_address, BTC_RECEIVER)
-    paid = any(tx.get("to")==BTC_RECEIVER and float(tx.get("amount_btc",0))>=0.00001 for tx in txns)
+    paid = any(tx.get("to")==BTC_RECEIVER and float(tx.get("amount_btc",0))<=0.00001 for tx in txns)
     if not paid:
         return jsonify(status="pending", message="Waiting for BTC payment"), 200
 
