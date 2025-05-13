@@ -117,56 +117,53 @@
 
   <div id="result"></div>
 
- <script>
-  // copy-on-click for QR
-  document.querySelector("#btc-instructions img")
-    .addEventListener("click", () => {
-      navigator.clipboard.writeText("1FQov4P8yzUU1Af4C5QNyAfQauc4maytKo");
-      alert("📋 BTC address copied to clipboard");
-    });
-
-  // handle form submit
-  document.getElementById("pledgeForm").addEventListener("submit", async e => {
-    e.preventDefault();
-    const resultDiv = document.getElementById("result");
-    resultDiv.className = "";
-    resultDiv.textContent = "⏳ Processing...";
-
-    const payload = {
-      btc_address: document.getElementById("btc_address").value.trim(),
-      pledge_text: document.getElementById("pledge_text").value.trim()
-    };
-
-    try {
-      const res = await fetch("/pledge_submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+  <script>
+    // copy-on-click for QR
+    document.querySelector("#btc-instructions img")
+      .addEventListener("click", () => {
+        navigator.clipboard.writeText("1FQov4P8yzUU1Af4C5QNyAfQauc4maytKo");
+        alert("📋 BTC address copied to clipboard");
       });
-      const data = await res.json();
 
-      if (!res.ok) throw new Error(data.message || data.error || res.statusText);
+    // handle form submit
+    document.getElementById("pledgeForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const resultDiv = document.getElementById("result");
+      resultDiv.className = "";
+      resultDiv.textContent = "⏳ Processing...";
 
-      // επιτυχείς καταστάσεις: "verified" ή "already_verified"
-      resultDiv.classList.add("success");
-      resultDiv.innerHTML = `
-        <strong>✅ ${ data.status === "already_verified" ? "Already Verified" : "Pledge Accepted!" }</strong><br><br>
-        THR Address: <code>${data.thr_address}</code><br>
-        Pledge Hash: <code>${data.pledge_hash}</code><br><br>
-        📄 <a class="pdf-link" href="/contracts/${data.pdf_filename}" target="_blank">
-          Download Contract PDF
-        </a><br><br>
-        🚀 <a href="/wallet_data/${data.thr_address}">Go to Wallet…</a>
-          Go to Wallet & Download CGMiner Kit
-        </a>
-      `;
-    } catch (err) {
-      resultDiv.classList.add("error");
-      resultDiv.innerHTML = `<strong>❌ Error:</strong> ${err.message}`;
-    }
-  });
-</script>
+      const payload = {
+        btc_address: document.getElementById("btc_address").value.trim(),
+        pledge_text: document.getElementById("pledge_text").value.trim()
+      };
 
+      try {
+        const res = await fetch("/pledge_submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || data.error || res.statusText);
+
+        resultDiv.classList.add("success");
+        resultDiv.innerHTML = `
+          <strong>✅ ${ data.status === "already_verified" ? "Already Verified" : "Pledge Accepted!" }</strong><br><br>
+          THR Address: <code>${data.thr_address}</code><br>
+          Pledge Hash: <code>${data.pledge_hash}</code><br><br>
+          📄 <a class="pdf-link" href="/contracts/${data.pdf_filename}" target="_blank">
+            Download Contract PDF
+          </a><br><br>
+          🚀 <a href="/wallet/${data.thr_address}">
+            Go to Wallet &amp; Download CGMiner Kit
+          </a>
+        `;
+      } catch (err) {
+        resultDiv.classList.add("error");
+        resultDiv.innerHTML = `<strong>❌ Error:</strong> ${err.message}`;
+      }
+    });
+  </script>
 
 </body>
 </html>
