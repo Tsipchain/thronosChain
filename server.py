@@ -162,15 +162,24 @@ def submit_block():
     r     = calculate_reward(h)
     fee   = 0.005
 
-    data.setdefault("timestamp",   time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()))
-    data.setdefault("block_hash",  f"THR-{h}")
-    data["reward"]         = r
-    data["pool_fee"]       = fee
+    data.setdefault("timestamp",    time.strftime(...))
+    data.setdefault("block_hash",   f"THR-{h}")
+    data["reward"]          = r
+    data["pool_fee"]        = fee
     data["reward_to_miner"] = round(r - fee, 6)
 
+    # 1) προσθήκη στο blockchain
     chain.append(data)
     save_json(CHAIN_FILE, chain)
+
+    # 2) ενημέρωση ledger για το miner
+    ledger = load_json(LEDGER_FILE, {})
+    miner = data["thr_address"]
+    ledger[miner] = round(ledger.get(miner, 0.0) + data["reward_to_miner"], 6)
+    save_json(LEDGER_FILE, ledger)
+
     return jsonify(status="ok", **data), 200
+
 
 # ─── WALLET DATA ──────────────────────────────────
 @app.route("/wallet_data/<thr_addr>", methods=["GET"])
