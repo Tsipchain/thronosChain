@@ -31,7 +31,7 @@ def get_btc_txns(btc_address: str,
     try:
         # Φόρτωσε confirmed + mempool txs
         logger.info(f"Fetching chain txs for {btc_address}")
-        r_chain = requests.get(f"{BASE_URL}/address/{btc_address}/txs/chain",
+        r_chain = requests.get(f"{BASE_URL}/address/{btc_address}/txs",
                                timeout=10)
         r_chain.raise_for_status()
         logger.info(f"Fetching mempool txs for {btc_address}")
