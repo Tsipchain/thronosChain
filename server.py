@@ -2,6 +2,7 @@ import os
 import json
 import time
 import hashlib
+import requests
 
 from flask import (
     Flask, request, jsonify,
@@ -13,6 +14,9 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 
+# Background scheduler
+from apscheduler.schedulers.background import BackgroundScheduler
+
 app = Flask(__name__)
 
 # ─── CONFIG ────────────────────────────────────────
@@ -21,8 +25,8 @@ CHAIN_FILE    = "phantom_tx_chain.json"
 PLEDGE_CHAIN  = "pledge_chain.json"
 BTC_RECEIVER  = "1FQov4P8yzUU1Af4C5QNyAfQauc4maytKo"
 
-# output PDFs into static/contracts
-CONTRACTS_DIR = os.path.join(app.root_path, "templates", "contracts")
+# όπου αποθηκεύονται τα PDF
+CONTRACTS_DIR = os.path.join(app.root_path, "static", "contracts")
 os.makedirs(CONTRACTS_DIR, exist_ok=True)
 
 # ─── HELPERS ───────────────────────────────────────
@@ -73,7 +77,7 @@ def create_pdf_contract(btc_addr, pledge_text, thr_addr, filename):
     c.save()
     return out
 
-# ─── TEMPLATED PAGES ──────────────────────────────
+# ─── FLASK ROUTES ─────────────────────────────────
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -98,13 +102,11 @@ def viewer():
 def wallet_page():
     return render_template("wallet_viewer.html")
 
-# ─── PLEDGE SUBMIT ────────────────────────────────
 @app.route("/pledge_submit", methods=["POST"])
 def pledge_submit():
     data        = request.get_json() or {}
     btc_address = data.get("btc_address", "").strip()
     pledge_text = data.get("pledge_text", "").strip()
-
     if not btc_address:
         return jsonify(error="Missing BTC address"), 400
 
@@ -119,7 +121,7 @@ def pledge_submit():
         ), 200
 
     txns = get_btc_txns(btc_address, BTC_RECEIVER)
-    paid = any(tx.get("to") == BTC_RECEIVER and float(tx.get("amount_btc", 0)) >= 0.00001 for tx in txns)
+    paid = any(tx.get("to")==BTC_RECEIVER and float(tx.get("amount_btc",0))>=0.00001 for tx in txns)
     if not paid:
         return jsonify(status="pending", message="Waiting for BTC payment"), 200
 
@@ -144,12 +146,10 @@ def pledge_submit():
         pdf_filename=pdf_name
     ), 200
 
-# ─── SERVE PDFs ───────────────────────────────────
 @app.route("/contracts/<path:filename>")
 def serve_contract(filename):
     return send_from_directory(CONTRACTS_DIR, filename)
 
-# ─── CHAIN & BLOCKS ───────────────────────────────
 @app.route("/chain", methods=["GET"])
 def get_chain():
     return jsonify(load_json(CHAIN_FILE, [])), 200
@@ -162,77 +162,108 @@ def submit_block():
     r     = calculate_reward(h)
     fee   = 0.005
 
-    data.setdefault("timestamp",    time.strftime(...))
-    data.setdefault("block_hash",   f"THR-{h}")
+    data.setdefault("timestamp",     time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()))
+    data.setdefault("block_hash",    f"THR-{h}")
     data["reward"]          = r
     data["pool_fee"]        = fee
     data["reward_to_miner"] = round(r - fee, 6)
 
-    # 1) προσθήκη στο blockchain
+    # 1) blockchain
     chain.append(data)
     save_json(CHAIN_FILE, chain)
 
-    # 2) ενημέρωση ledger για το miner
+    # 2) ledger
     ledger = load_json(LEDGER_FILE, {})
     miner = data["thr_address"]
-    ledger[miner] = round(ledger.get(miner, 0.0) + data["reward_to_miner"], 6)
+    ledger[miner] = round(ledger.get(miner,0.0) + data["reward_to_miner"], 6)
     save_json(LEDGER_FILE, ledger)
 
     return jsonify(status="ok", **data), 200
 
-
-# ─── WALLET DATA ──────────────────────────────────
 @app.route("/wallet_data/<thr_addr>", methods=["GET"])
 def wallet_data(thr_addr):
     ledger  = load_json(LEDGER_FILE, {})
     chain   = load_json(CHAIN_FILE, [])
     bal     = round(ledger.get(thr_addr, 0.0), 6)
-    history = [
-        tx for tx in chain
-        if isinstance(tx, dict) and (tx.get("from") == thr_addr or tx.get("to") == thr_addr)
-    ]
+    history = [tx for tx in chain if isinstance(tx,dict) and (tx.get("from")==thr_addr or tx.get("to")==thr_addr)]
     return jsonify(balance=bal, transactions=history), 200
 
 @app.route("/wallet/<thr_addr>", methods=["GET"])
 def wallet_redirect(thr_addr):
     return redirect(url_for("wallet_data", thr_addr=thr_addr)), 302
 
-# ─── TOKEN SEND ──────────────────────────────────
 @app.route("/send_token", methods=["POST"])
 def send_token():
     data = request.get_json() or {}
-    frm  = data.get("from", "").strip()
-    to_  = data.get("to", "").strip()
-
+    frm  = data.get("from","").strip()
+    to_  = data.get("to","").strip()
     try:
-        amt = round(float(data.get("amount", 0)), 6)
+        amt = round(float(data.get("amount",0)),6)
     except:
         return jsonify(error="Invalid amount"), 400
+    if not frm or not to_ or amt<=0:
+        return jsonify(error="Invalid input"),400
 
-    if not frm or not to_ or amt <= 0:
-        return jsonify(error="Invalid input"), 400
-
-    ledger = load_json(LEDGER_FILE, {})
+    ledger = load_json(LEDGER_FILE,{})
     fee    = 0.0015
-    total  = round(amt + fee, 6)
-    if ledger.get(frm, 0.0) < total:
-        return jsonify(error="Insufficient balance"), 403
+    total  = round(amt+fee,6)
+    if ledger.get(frm,0.0)<total:
+        return jsonify(error="Insufficient balance"),403
 
-    ledger[frm] = round(ledger.get(frm, 0.0) - total, 6)
-    ledger[to_] = round(ledger.get(to_, 0.0) + amt, 6)
+    ledger[frm] = round(ledger.get(frm,0.0)-total,6)
+    ledger[to_] = round(ledger.get(to_,0.0)+amt,6)
     save_json(LEDGER_FILE, ledger)
 
     tx = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
-        "from":       frm,
-        "to":         to_,
-        "amount":     amt,
-        "fee":        fee
+        "from": frm, "to": to_, "amount": amt, "fee": fee
     }
-    chain = load_json(CHAIN_FILE, [])
+    chain = load_json(CHAIN_FILE,[])
     chain.append(tx)
     save_json(CHAIN_FILE, chain)
     return jsonify(status="OK", tx=tx), 200
+
+# ─── BACKGROUND MINER ─────────────────────────────
+def mint_first_blocks():
+    pledges = load_json(PLEDGE_CHAIN, [])
+    chain   = load_json(CHAIN_FILE, [])
+    seen    = {b.get("thr_address") for b in chain if isinstance(b,dict) and b.get("thr_address")}
+    height  = len(chain)
+
+    for p in pledges:
+        thr = p["thr_address"]
+        if thr in seen:
+            continue
+
+        r   = calculate_reward(height)
+        fee = 0.005
+        to_miner = round(r - fee, 6)
+        block = {
+          "thr_address":     thr,
+          "timestamp":       time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+          "block_hash":      f"THR-{height}",
+          "reward":          r,
+          "pool_fee":        fee,
+          "reward_to_miner": to_miner
+        }
+
+        try:
+            resp = requests.post(
+              f"http://localhost:{os.getenv('PORT',8000)}/submit_block",
+              json=block, timeout=5
+            )
+            resp.raise_for_status()
+            chain = load_json(CHAIN_FILE, [])
+            height = len(chain)
+            seen.add(thr)
+            print(f"⛏️ Mined block #{height} for {thr}: +{to_miner} THR")
+        except Exception as e:
+            print(f"❌ Failed mining for {thr}:", e)
+
+# εκκίνηση scheduler
+scheduler = BackgroundScheduler(daemon=True)
+scheduler.add_job(mint_first_blocks, 'interval', minutes=1)
+scheduler.start()
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
