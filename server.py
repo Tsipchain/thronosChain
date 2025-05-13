@@ -22,7 +22,7 @@ PLEDGE_CHAIN  = "pledge_chain.json"
 BTC_RECEIVER  = "1FQov4P8yzUU1Af4C5QNyAfQauc4maytKo"
 
 # output PDFs into static/contracts
-CONTRACTS_DIR = os.path.join(app.root_path, "static", "contracts")
+CONTRACTS_DIR = os.path.join(app.root_path, "templates", "contracts")
 os.makedirs(CONTRACTS_DIR, exist_ok=True)
 
 # ─── HELPERS ───────────────────────────────────────
