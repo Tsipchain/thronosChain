@@ -2,6 +2,7 @@ import os
 import json
 import time
 import hashlib
+import logging
 import requests
 
 from flask import (
@@ -23,6 +24,10 @@ BTC_RECEIVER  = "1FQov4P8yzUU1Af4C5QNyAfQauc4maytKo"
 MIN_AMOUNT    = 0.00001  # ελάχιστο BTC για επαλήθευση
 
 app = Flask(__name__)
+
+# Logger setup
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("pledge")
 
 # όπου αποθηκεύονται τα PDF
 CONTRACTS_DIR = os.path.join(app.root_path, "static", "contracts")
@@ -98,43 +103,11 @@ def viewer():
 def wallet_page():
     return render_template("wallet_viewer.html")
 
- @app.route("/pledge_submit", methods=["POST"])
- def pledge_submit():
-     data        = request.get_json() or {}
-     btc_address = data.get("btc_address", "").strip()
-     pledge_text = data.get("pledge_text", "").strip()
-
-     if not btc_address:
-         return jsonify(error="Missing BTC address"), 400
-
-     pledges = load_json(PLEDGE_CHAIN, [])
-     exists  = next((p for p in pledges if p["btc_address"] == btc_address), None)
-     if exists:
-         return jsonify(
-             status="already_verified",
-             thr_address=exists["thr_address"],
-             pledge_hash=exists["pledge_hash"],
-             pdf_filename=f"pledge_{exists['thr_address']}.pdf"
-         ), 200
-
--    # Έλεγχος BTC πληρωμής
--    txns = get_btc_txns(btc_address, BTC_RECEIVER)
--    paid = any(tx["to"] == BTC_RECEIVER and tx["amount_btc"] >= MIN_AMOUNT for tx in txns)
--    if not paid:
--        return jsonify(status="pending", message="Waiting for BTC payment"), 200
-+    # Έλεγχος BTC πληρωμής
-+    txns = get_btc_txns(btc_address, BTC_RECEIVER)
-+    logger.info("get_btc_txns for %s → %s", btc_address, txns)
-+    paid = any(tx["to"] == BTC_RECEIVER and tx["amount_btc"] >= MIN_AMOUNT for tx in txns)
-+    if not paid:
-+        # Επιστρέφουμε και τα txns για debugging
-+        return jsonify(
-+            status="pending",
-+            message="Waiting for BTC payment",
-+            txns=txns
-+        ), 200
-
-     # Δημιουργία THR address & PDF
+@app.route("/pledge_submit", methods=["POST"])
+def pledge_submit():
+    data        = request.get_json() or {}
+    btc_address = data.get("btc_address", "").strip()
+    pledge_text = data.get("pledge_text", "").strip()
 
     if not btc_address:
         return jsonify(error="Missing BTC address"), 400
@@ -151,9 +124,15 @@ def wallet_page():
 
     # Έλεγχος BTC πληρωμής
     txns = get_btc_txns(btc_address, BTC_RECEIVER)
+    logger.info("get_btc_txns for %s → %s", btc_address, txns)
     paid = any(tx["to"] == BTC_RECEIVER and tx["amount_btc"] >= MIN_AMOUNT for tx in txns)
     if not paid:
-        return jsonify(status="pending", message="Waiting for BTC payment"), 200
+        # Επιστρέφουμε και τα txns για debugging
+        return jsonify(
+            status="pending",
+            message="Waiting for BTC payment",
+            txns=txns
+        ), 200
 
     # Δημιουργία THR address & PDF
     thr_addr = f"THR{int(time.time()*1000)}"
